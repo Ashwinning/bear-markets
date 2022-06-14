@@ -1,0 +1,15 @@
+name: download-gspc-yahoo-finance
+on: [push]
+jobs:
+  download-updated-data:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repo
+      id: checkout
+      uses: actions/checkout@v2
+    - name: Update file
+      id: update_file
+      uses: TheLastProject/keep-remote-file-locally-up-to-date-action@v1
+      with:
+        url: https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?formatted=true&crumb=VKK2Qu6CY3c&lang=en-US&region=US&includeAdjustedClose=true&interval=1d&period1=-1325635200&period2=1655251200&events=capitalGain%7Cdiv%7Csplit&useYfid=true&corsDomain=finance.yahoo.com
+        file_in_repo: GSPC-Yahoo-Finance.json
