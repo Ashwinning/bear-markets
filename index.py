@@ -1,8 +1,12 @@
 import streamlit as st
-st.set_page_config(layout='wide')
+st.set_page_config(
+     page_title="Tracking the Bear Market",
+     page_icon="🐻",
+     layout="wide",
+ )
 
 #st.title('Tracking the Bear Market')
-st.markdown("<h1 style='text-align: center;'>Tracking the Bear Market</h1>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; padding-bottom: 36px;'><h1 style='padding: 5px;'>Tracking the Bear Market</h1>(Auto-updated daily)</div> ", unsafe_allow_html=True)
 
 import json
 
@@ -58,7 +62,7 @@ from datetime import date, datetime
 
 bearData = []
 
-for bear in bearMarkets[:-1]:
+for bear in bearMarkets:
 	mask = (df['timestamp'] >= bear['start']) & (df['timestamp'] <= bear['end'])
 	bearData.append(df.loc[mask])
 
@@ -91,7 +95,7 @@ bearFigs = go.Figure()
 
 important = ['Dec-1961', 'Mar-2000', 'Oct-2007', 'Feb-2020']
 
-for data in bearData:
+for data in bearData[:-1]:
 	name = name=data.iloc[0]['timestamp'].strftime("%b-%Y")
 	bearFigs.add_trace(go.Scatter(x=data['days'], y=data['change'], mode='lines', name=name, opacity=0.4 if name in important else 0.15,
 		hovertemplate=[f" {x['change']:.1%} ({x['timestamp'].strftime('%b %d, %Y')})<br> {(x['days'])} trading days since peak" for i, x in data.iterrows()]
@@ -105,12 +109,13 @@ bearFigs.update_layout(xaxis={'range':[0, 1912], 'showgrid':False},
 	yaxis=dict(tickformat="0.2%", range=[-0.6, 0.05], showgrid=False),
 	legend_title="Bear Markets<br><i>(starting month)</i>",
 	title="Where are we compared to previous bear markets?<br>S&P500 (daily close)",
+	title_font_size=24,
 	xaxis_title = "Trading days since last peak",
 	yaxis_title = "Drawdown",
 	template='none',
 	paper_bgcolor="rgb(255,255,255)", plot_bgcolor="rgb(255,255,255)",
 	legend_traceorder="reversed",
-	width=1650
+	width=1650, height=455
 )
 
 _, col1, _ = st.columns([1,30,1])
@@ -120,10 +125,21 @@ with col1:
 
 
 fig = go.Figure(data=go.Scatter(x = df.timestamp, y = df.close))
-for bear in bearMarkets:
+for i, data in enumerate(bearData):
 	# Add a shape whose x and y coordinates refer to the domains of the x and y axes
-	fig.add_vrect(x0=bear['start'], x1=bear['end'],
+	fig.add_vrect(x0=data.iloc[0]['timestamp'], x1=data.iloc[-1]['timestamp'],
 	fillcolor='grey', opacity=0.15, layer="below", line_width=0)
+	# Name
+	if i != len(bearData)-1:
+		fig.add_annotation(x=data.iloc[0]['timestamp'] + (data.iloc[-1]['timestamp']-data.iloc[0]['timestamp'])/2, 
+			y=0,
+			text= data.iloc[0]['timestamp'].strftime("%b-%Y"),
+			align='left',
+			showarrow=False,
+			yshift=260,
+			xshift=-5,
+			xanchor='center'
+			)
 
 fig.update_yaxes(type='log')
 fig.update_xaxes(showgrid=False)
@@ -131,6 +147,7 @@ fig.update_yaxes(showgrid=False)
 fig.update_layout(template = 'none',
 	legend_title="Bear Markets<br><i>(starting month)</i>",
 	title="Bear markets since The Great Depression<br>S&P500",
+	title_font_size=24,
 	yaxis_title = "S&P500<br>Daily Close (Log Scale)",
 	paper_bgcolor="rgb(255,255,255)", plot_bgcolor="rgb(255,255,255)",
 	yaxis=dict(tickformat="$0.2f"),
@@ -148,8 +165,8 @@ with col1:
 	'''
 	### Comparing the current market with previous bear markets
 	'''
-	defaultOpenCharts = ['Oct-2007', 'Feb-1966', 'Dec-1961']
-	for i, data in reversed(list(enumerate(bearData[:-1]))):
+	defaultOpenCharts = ['Feb-2020','Oct-2007', 'Dec-1961']
+	for i, data in reversed(list(enumerate(bearData))):
 		name = data.iloc[0]['timestamp'].strftime("%b-%Y")
 		with st.expander(name, expanded=True if name in defaultOpenCharts else False):
 			fig = go.Figure()
@@ -210,3 +227,8 @@ with col1:
 			)
 			st.markdown(f"##### {name} vs Present Day (since 3 Jan '22)")
 			st.plotly_chart(fig, width=1200)
+
+'''
+
+''' 
+st.markdown("""<h6 style='text-align: center;'><a href='http://twitter.com/ashwinning'>Ashwin Sinha</a></h6>""", unsafe_allow_html=True)
