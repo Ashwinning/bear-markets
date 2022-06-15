@@ -166,7 +166,7 @@ with col1:
 	### Comparing the current market with previous bear markets
 	'''
 	defaultOpenCharts = ['Feb-2020','Oct-2007', 'Dec-1961']
-	for i, data in reversed(list(enumerate(bearData))):
+	for i, data in reversed(list(enumerate(bearData[:-1]))):
 		name = data.iloc[0]['timestamp'].strftime("%b-%Y")
 		with st.expander(name, expanded=True if name in defaultOpenCharts else False):
 			fig = go.Figure()
