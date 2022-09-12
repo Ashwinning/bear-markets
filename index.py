@@ -59,6 +59,24 @@ if 'end' not in bearMarkets[-1].keys():
 import plotly.graph_objects as go
 
 from datetime import date, datetime
+from dateutil import relativedelta
+
+def YMDBetweenDates(date2, date1):
+	diff = relativedelta.relativedelta(date2, date1)
+	output = ''
+	ymd = {}
+	ymd['yrs'] = diff.years
+	ymd['mos'] = diff.months
+	ymd['days'] = diff.days
+	for x in ymd.items():
+		if x[1] < 1:
+			continue
+		if x[1] < 2:
+			output += str(x[1]) + ' ' + str(x[0])[:-1] + ' '
+		else:
+			output += str(x[1]) + ' ' + str(x[0]) + ' '
+	return output
+
 
 bearData = []
 
@@ -193,7 +211,7 @@ with col1:
 			# Market bottom
 			fig.add_annotation(x=minCandle['days'].values[0], 
 				y=minCandle['change'].values[0],
-				text=f'''└ {minCandle['change'].values[0]:.1%}, {(minCandle.iloc[0]['timestamp']- bearData[i].iloc[0]['timestamp']).days} days since peak ({minCandle.iloc[0]['days']} trading days)''',
+				text=f'''└ {minCandle['change'].values[0]:.1%}, {YMDBetweenDates(minCandle.iloc[0]['timestamp'], bearData[i].iloc[0]['timestamp'])}since peak ({minCandle.iloc[0]['days']} trading days)''',
 				align='left',
 				showarrow=False,
 				yshift=-8,
@@ -204,8 +222,8 @@ with col1:
 			# Cycle end
 			fig.add_annotation(x=bearData[i].iloc[-1]['days'], 
 				y=bearData[i].iloc[-1]['change'],
-				text=f'''{(bearData[i].iloc[-1]['timestamp']- bearData[i].iloc[0]['timestamp']).days} days since peak ({bearData[i].iloc[-1]['days']} trading days)   <br>
-				{(bearData[i].iloc[-1]['timestamp']- minCandle.iloc[0]['timestamp']).days} days since market bottom ({bearData[i].iloc[-1]['days'] - minCandle.iloc[0]['days']} trading days) ┐''',
+				text=f'''{YMDBetweenDates(bearData[i].iloc[-1]['timestamp'], bearData[i].iloc[0]['timestamp'])}since peak ({bearData[i].iloc[-1]['days']} trading days)   <br>
+				{YMDBetweenDates(bearData[i].iloc[-1]['timestamp'], minCandle.iloc[0]['timestamp'])}since market bottom ({bearData[i].iloc[-1]['days'] - minCandle.iloc[0]['days']} trading days) ┐''',
 				align='right',
 				showarrow=False,
 				yshift=17,
