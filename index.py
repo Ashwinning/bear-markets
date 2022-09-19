@@ -9,11 +9,6 @@ st.set_page_config(
 st.markdown("<div style='text-align: center; padding-bottom: 36px;'><h1 style='padding: 5px;'>Tracking the Bear Market</h1>(Auto-updated daily)</div> ", unsafe_allow_html=True)
 
 import json
-'''
-import requests
-
-r = requests.get('https://query2.finance.yahoo.com/v8/finance/chart/%5EGSPC?formatted=true&crumb=lYxIXQLH%2FOT&lang=en-US&region=US&includeAdjustedClose=true&interval=1d&period1=-1325635200&period2=1663113600&events=capitalGain%7Cdiv%7Csplit&useYfid=true&corsDomain=finance.yahoo.com')
-'''
 
 with open('GSPC-Yahoo-Finance.json') as f:
 	data = json.load(f)
