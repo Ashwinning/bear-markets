@@ -10,6 +10,7 @@ st.markdown("<div style='text-align: center; padding-bottom: 36px;'><h1 style='p
 
 import json
 
+# Load data saved from Yahoo Finance
 with open('GSPC-Yahoo-Finance.json') as f:
 	data = json.load(f)
 
@@ -27,6 +28,21 @@ for quote in quotes.keys():
 df['adjclose'] = data['chart']['result'][0]['indicators']['adjclose'][0]['adjclose']
 
 df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
+
+
+# Load new S&P500 Closing data from FRED
+import pandas_datareader.data as web
+import datetime
+start = df['timestamp'].iloc[-1].to_pydatetime()
+end = datetime.datetime.today()
+# Scrape S&P 500 data from Yahoo Finance
+df2 = web.DataReader('sp500', 'fred', start, end)
+
+# Merge new FRED and old Yahoo Finance data
+df2['timestamp'] = df2.index.to_pydatetime()
+df2['close'] = df2.sp500
+
+df = df.merge(df2[['timestamp', 'close']][df2['close'].notna()], how='outer')
 
 # Calculate bear markets
 
@@ -55,6 +71,23 @@ for i, day in df.iterrows():
 # If we are currently in a bear market, add an end to the current bear market
 if 'end' not in bearMarkets[-1].keys():
 	bearMarkets[-1]['end'] = df.iloc[-1]['timestamp']
+
+
+# Import CPI Data
+#cpi_df = pd.read_csv('CPIAUCSL.csv')
+cpi_df = web.DataReader('CPIAUCSL', 'fred', df['timestamp'].iloc[0].to_pydatetime(), df['timestamp'].iloc[-1].to_pydatetime())
+cpi_df['datetime'] = pd.to_datetime(cpi_df.index, format='%Y-%m-%d')
+
+
+# Import Interest Rate Data
+#fedfunds_df = pd.read_csv('FEDFUNDS.csv') 
+fedfunds_df = web.DataReader('FEDFUNDS', 'fred', df['timestamp'].iloc[0].to_pydatetime(), df['timestamp'].iloc[-1].to_pydatetime())
+fedfunds_df['datetime'] = pd.to_datetime(fedfunds_df.index, format='%Y-%m-%d')
+
+# Import Employment Data
+#payems_df = pd.read_csv('PAYEMS.csv')
+payems_df = web.DataReader('PAYEMS', 'fred', df['timestamp'].iloc[0].to_pydatetime(), df['timestamp'].iloc[-1].to_pydatetime())
+payems_df['datetime'] = pd.to_datetime(payems_df.index, format='%Y-%m-%d')
 
 import plotly.graph_objects as go
 
@@ -187,65 +220,210 @@ with col1:
 	for i, data in reversed(list(enumerate(bearData[:-1]))):
 		name = data.iloc[0]['timestamp'].strftime("%b-%Y")
 		with st.expander(name, expanded=True if name in defaultOpenCharts else False):
-			fig = go.Figure()
-			fig.add_trace(go.Scatter(x=currentMarket['days'], y=currentMarket['change'], mode='lines', name='Current Market', line={'width': 3, 'color': 'darkblue'}, 
-				hovertemplate=[f" {x['change']:.1%} ({x['timestamp'].strftime('%b %d, %Y')})" for i, x in currentMarket.iterrows()]
-				))
-			fig.add_trace(go.Scatter(x=bearData[i]['days'], y=bearData[i]['change'], mode='lines', name=name,
-				hovertemplate=[f" {x['change']:.1%} ({x['timestamp'].strftime('%b %d, %Y')})" for i, x in bearData[i].iterrows()]
-				))
-
-			minCandle = bearData[i][bearData[i].close == bearData[i].close.min()]
-
-			# Peak
-			fig.add_annotation(x=0, 
-				y=0,
-				text=f'''┌ Peak''',
-				align='left',
-				showarrow=False,
-				yshift=9,
-				xshift=-5,
-				xanchor='left'
-				)
-
-			# Market bottom
-			fig.add_annotation(x=minCandle['days'].values[0], 
-				y=minCandle['change'].values[0],
-				text=f'''└ {minCandle['change'].values[0]:.1%}, {YMDBetweenDates(minCandle.iloc[0]['timestamp'], bearData[i].iloc[0]['timestamp'])}since peak ({minCandle.iloc[0]['days']} trading days)''',
-				align='left',
-				showarrow=False,
-				yshift=-8,
-				xshift=-6,
-				xanchor='left'
-				)
-
-			# Cycle end
-			fig.add_annotation(x=bearData[i].iloc[-1]['days'], 
-				y=bearData[i].iloc[-1]['change'],
-				text=f'''{YMDBetweenDates(bearData[i].iloc[-1]['timestamp'], bearData[i].iloc[0]['timestamp'])}since peak ({bearData[i].iloc[-1]['days']} trading days)   <br>
-				{YMDBetweenDates(bearData[i].iloc[-1]['timestamp'], minCandle.iloc[0]['timestamp'])}since market bottom ({bearData[i].iloc[-1]['days'] - minCandle.iloc[0]['days']} trading days) ┐''',
-				align='right',
-				showarrow=False,
-				yshift=17,
-				xshift=7,
-				xanchor='right',
-				ax=0, ay=0
-				)
-
-			fig.update_layout( 
-				yaxis=dict(tickformat="0.2%"),
-				xaxis_title = "Trading days since last peak 🠆",
-				yaxis_title = "🠄 Drawdown",
-				template='simple_white',
-				paper_bgcolor="rgb(255,255,255)", plot_bgcolor="rgb(255,255,255)",
-				legend_traceorder="reversed",
-				hovermode='x unified',
-				margin=dict(t=50),
-				width=1200
-			)
 			st.markdown(f"##### {name} vs Present Day (since 3 Jan '22)")
-			st.plotly_chart(fig, width=1200)
 
+			tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["S&P 500", "Inflation", "Interest Rates", "Employment", "GDP", "Unemployment"])
+
+			with tab1:
+				fig = go.Figure()
+				fig.add_trace(go.Scatter(x=currentMarket['days'], y=currentMarket['change'], mode='lines', name='Current Market', line={'width': 3, 'color': 'darkblue'}, 
+					hovertemplate=[f" {x['change']:.1%} ({x['timestamp'].strftime('%b %d, %Y')})" for i, x in currentMarket.iterrows()]
+					))
+				fig.add_trace(go.Scatter(x=bearData[i]['days'], y=bearData[i]['change'], mode='lines', name=name,
+					hovertemplate=[f" {x['change']:.1%} ({x['timestamp'].strftime('%b %d, %Y')})" for i, x in bearData[i].iterrows()]
+					))
+
+				minCandle = bearData[i][bearData[i].close == bearData[i].close.min()]
+
+				# Peak
+				fig.add_annotation(x=0, 
+					y=0,
+					text=f'''┌ Peak''',
+					align='left',
+					showarrow=False,
+					yshift=9,
+					xshift=-5,
+					xanchor='left'
+					)
+
+				# Market bottom
+				fig.add_annotation(x=minCandle['days'].values[0], 
+					y=minCandle['change'].values[0],
+					text=f'''└ {minCandle['change'].values[0]:.1%}, {YMDBetweenDates(minCandle.iloc[0]['timestamp'], bearData[i].iloc[0]['timestamp'])}since peak ({minCandle.iloc[0]['days']} trading days)''',
+					align='left',
+					showarrow=False,
+					yshift=-8,
+					xshift=-6,
+					xanchor='left'
+					)
+
+				# Cycle end
+				fig.add_annotation(x=bearData[i].iloc[-1]['days'], 
+					y=bearData[i].iloc[-1]['change'],
+					text=f'''{YMDBetweenDates(bearData[i].iloc[-1]['timestamp'], bearData[i].iloc[0]['timestamp'])}since peak ({bearData[i].iloc[-1]['days']} trading days)   <br>
+					{YMDBetweenDates(bearData[i].iloc[-1]['timestamp'], minCandle.iloc[0]['timestamp'])}since market bottom ({bearData[i].iloc[-1]['days'] - minCandle.iloc[0]['days']} trading days) ┐''',
+					align='right',
+					showarrow=False,
+					yshift=17,
+					xshift=7,
+					xanchor='right',
+					ax=0, ay=0
+					)
+
+				fig.update_layout( 
+					yaxis=dict(tickformat="0.2%"),
+					xaxis_title = "Trading days since last peak 🠆",
+					yaxis_title = "🠄 Drawdown",
+					template='simple_white',
+					paper_bgcolor="rgb(255,255,255)", plot_bgcolor="rgb(255,255,255)",
+					legend_traceorder="reversed",
+					hovermode='x unified',
+					margin=dict(t=50),
+					width=1200
+				)
+				st.plotly_chart(fig, width=1200)
+
+			with tab2:
+				'''
+				Consumer Price Index for All Urban Consumers: All Items in U.S. City Average (CPIAUCSL)
+				'''
+
+				# Select the previous market's inflation as a subset
+				historical_mask = (cpi_df['datetime'] > bearData[i].iloc[0]['timestamp']) & (cpi_df['datetime'] <= bearData[i].iloc[-1]['timestamp'])
+				historical_cpi_df = cpi_df.loc[historical_mask]
+
+				# Calculate percentages relative to the starting month for the previous market
+				historical_cpi_df['days'] = range(len(historical_cpi_df))
+				pos = historical_cpi_df.columns.get_loc('CPIAUCSL')
+				historical_cpi_df['change'] = (historical_cpi_df.iloc[1:, pos] / historical_cpi_df.iat[0, pos]) -1
+				historical_cpi_df.iat[0, historical_cpi_df.columns.get_loc('change')] = 0
+
+				# Select the current market's inflation as a subset
+				current_mask = (cpi_df['datetime'] > currentMarket.iloc[0]['timestamp']) & (cpi_df['datetime'] <= currentMarket.iloc[-1]['timestamp'])
+				current_cpi_df = cpi_df.loc[current_mask]
+
+				# Calculate percentages relative to the starting month for the current market
+				current_cpi_df['days'] = range(len(current_cpi_df))
+				pos = current_cpi_df.columns.get_loc('CPIAUCSL')
+				current_cpi_df['change'] = (current_cpi_df.iloc[1:, pos] / current_cpi_df.iat[0, pos]) -1
+				current_cpi_df.iat[0, current_cpi_df.columns.get_loc('change')] = 0
+
+				fig = go.Figure()
+				#fig.add_trace(go.Scatter(x=historical_cpi_df['days'], y=historical_cpi_df['CPIAUCSL'].pct_change(), mode='lines', name='Current Market', line={'width': 3, 'color': 'darkblue'}, 
+					#hovertemplate=[f" {x['change']:.1%} ({x['timestamp'].strftime('%b %d, %Y')})" for i, x in currentMarket.iterrows()]
+					#))
+				fig.add_trace(go.Scatter(x=current_cpi_df['days'], y=current_cpi_df['change'], mode='lines', name='Current Market', line={'width': 3, 'color': 'darkblue'}, 
+					hovertemplate=[f" {x['change']:.1%} ({x['datetime'].strftime('%b %d, %Y')})" for i, x in current_cpi_df.iterrows()]
+				))
+				fig.add_trace(go.Scatter(x=historical_cpi_df['days'], y=historical_cpi_df['change'], mode='lines', name=name,
+					hovertemplate=[f" {x['change']:.1%} ({x['datetime'].strftime('%b %d, %Y')})" for i, x in historical_cpi_df.iterrows()]
+					))
+				fig.update_layout( 
+					yaxis=dict(tickformat="0.2%"),
+					xaxis_title = "Months since last peak 🠆",
+					yaxis_title = "Change in CPI since last market peak 🠆",
+					template='simple_white',
+					paper_bgcolor="rgb(255,255,255)", plot_bgcolor="rgb(255,255,255)",
+					legend_traceorder="reversed",
+					hovermode='x unified',
+					margin=dict(t=50),
+					width=1200
+				)
+				st.plotly_chart(fig, width=1200)
+				st.caption('Source: https://fred.stlouisfed.org/series/CPIAUCSL')
+			
+			with tab3:
+				'''
+				Federal Funds Effective Rate (FEDFUNDS)
+				'''
+				# Select the previous market's inflation as a subset
+				historical_mask = (fedfunds_df['datetime'] > bearData[i].iloc[0]['timestamp']) & (fedfunds_df['datetime'] <= bearData[i].iloc[-1]['timestamp'])
+				historical_fedfunds_df = fedfunds_df.loc[historical_mask]
+
+				# Create month index relative to the starting month for the previous market
+				historical_fedfunds_df['days'] = range(len(historical_fedfunds_df))
+
+				# Select the current market's inflation as a subset
+				current_mask = (fedfunds_df['datetime'] > currentMarket.iloc[0]['timestamp']) & (fedfunds_df['datetime'] <= currentMarket.iloc[-1]['timestamp'])
+				current_fedfunds_df = fedfunds_df.loc[current_mask]
+
+				# Create month index relative to the starting month for the current market
+				current_fedfunds_df['days'] = range(len(current_fedfunds_df))
+
+				fig = go.Figure()
+				#fig.add_trace(go.Scatter(x=historical_cpi_df['days'], y=historical_cpi_df['CPIAUCSL'].pct_change(), mode='lines', name='Current Market', line={'width': 3, 'color': 'darkblue'}, 
+					#hovertemplate=[f" {x['change']:.1%} ({x['timestamp'].strftime('%b %d, %Y')})" for i, x in currentMarket.iterrows()]
+					#))
+				fig.add_trace(go.Scatter(x=current_fedfunds_df['days'], y=current_fedfunds_df['FEDFUNDS'], mode='lines', name='Current Market', line={'width': 3, 'color': 'darkblue'}, 
+					hovertemplate=[f" {x['FEDFUNDS']}% ({x['datetime'].strftime('%b %d, %Y')})" for i, x in current_fedfunds_df.iterrows()]
+				))
+				fig.add_trace(go.Scatter(x=historical_fedfunds_df['days'], y=historical_fedfunds_df['FEDFUNDS'], mode='lines', name=name,
+					hovertemplate=[f" {x['FEDFUNDS']}% ({x['datetime'].strftime('%b %d, %Y')})" for i, x in historical_fedfunds_df.iterrows()]
+					))
+				fig.update_layout( 
+					yaxis_ticksuffix="%",
+					xaxis_title = "Months since last peak 🠆",
+					yaxis_title = "Federal Funds Effective Rate 🠆",
+					template='simple_white',
+					paper_bgcolor="rgb(255,255,255)", plot_bgcolor="rgb(255,255,255)",
+					legend_traceorder="reversed",
+					hovermode='x unified',
+					margin=dict(t=50),
+					width=1200
+				)
+				st.plotly_chart(fig, width=1200)
+				st.caption('Source: https://fred.stlouisfed.org/series/CPIAUCSL')
+			
+			with tab4:
+				'''
+				Change In `All Employees, Total Nonfarm (PAYEMS)` Since Last Peak
+				'''
+				# Select the previous market's inflation as a subset
+				historical_mask = (payems_df['datetime'] > bearData[i].iloc[0]['timestamp']) & (payems_df['datetime'] <= bearData[i].iloc[-1]['timestamp'])
+				historical_payems_df = payems_df.loc[historical_mask]
+
+				# Calculate percentages relative to the starting month for the previous market
+				historical_payems_df['days'] = range(len(historical_payems_df))
+				pos = historical_payems_df.columns.get_loc('PAYEMS')
+				historical_payems_df['change'] = (historical_payems_df.iloc[1:, pos] / historical_payems_df.iat[0, pos]) -1
+				historical_payems_df.iat[0, historical_payems_df.columns.get_loc('change')] = 0
+
+				# Select the current market's inflation as a subset
+				current_mask = (payems_df['datetime'] > currentMarket.iloc[0]['timestamp']) & (payems_df['datetime'] <= currentMarket.iloc[-1]['timestamp'])
+				current_payems_df = payems_df.loc[current_mask]
+
+				# Calculate percentages relative to the starting month for the current market
+				current_payems_df['days'] = range(len(current_payems_df))
+				pos = current_payems_df.columns.get_loc('PAYEMS')
+				current_payems_df['change'] = (current_payems_df.iloc[1:, pos] / current_payems_df.iat[0, pos]) -1
+				current_payems_df.iat[0, current_payems_df.columns.get_loc('change')] = 0
+
+				fig = go.Figure()
+				#fig.add_trace(go.Scatter(x=historical_payems_df['days'], y=historical_payems_df['PAYEMS'].pct_change(), mode='lines', name='Current Market', line={'width': 3, 'color': 'darkblue'}, 
+					#hovertemplate=[f" {x['change']:.1%} ({x['timestamp'].strftime('%b %d, %Y')})" for i, x in currentMarket.iterrows()]
+					#))
+				fig.add_trace(go.Scatter(x=current_payems_df['days'], y=current_payems_df['change'], mode='lines', name='Current Market', line={'width': 3, 'color': 'darkblue'}, 
+					hovertemplate=[f" {x['change']:.1%} ({x['datetime'].strftime('%b %d, %Y')})" for i, x in current_payems_df.iterrows()]
+				))
+				fig.add_trace(go.Scatter(x=historical_payems_df['days'], y=historical_payems_df['change'], mode='lines', name=name,
+					hovertemplate=[f" {x['change']:.1%} ({x['datetime'].strftime('%b %d, %Y')})" for i, x in historical_payems_df.iterrows()]
+					))
+				fig.update_layout( 
+					yaxis=dict(tickformat="0.2%"),
+					xaxis_title = "Months since last peak 🠆",
+					yaxis_title = "Change in Employment since last market peak 🠆",
+					template='simple_white',
+					paper_bgcolor="rgb(255,255,255)", plot_bgcolor="rgb(255,255,255)",
+					legend_traceorder="reversed",
+					hovermode='x unified',
+					margin=dict(t=50),
+					width=1200
+				)
+				st.plotly_chart(fig, width=1200)
+				st.caption('Source: https://fred.stlouisfed.org/series/PAYEMS')
+
+			with tab5:
+				st.radio(label="Compare With" ,options=("S&P 500", "Inflation", "Interest Rates", "GDP", "Unemployment"), horizontal=True, key=i)
 '''
 
 ''' 
